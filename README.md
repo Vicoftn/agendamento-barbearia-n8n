@@ -2,7 +2,7 @@
 
 Agente de IA que atende clientes da **Doctor Barber**, uma barbearia fictícia, pelo chat: entende o pedido em linguagem natural, pergunta o que falta, confere a agenda no Google Calendar e marca o horário depois da confirmação do cliente. Também cancela e remarca agendamentos feitos na mesma conversa.
 
-> 🎥 Vídeo do fluxo funcionando: _(https://youtu.be/O7hVk2k1FHQ)_
+> 🎥 Vídeo do fluxo funcionando: (https://youtu.be/O7hVk2k1FHQ)
 
 ## O problema
 
