@@ -1,0 +1,362 @@
+{
+  "name": "Doctor Barber - Agendamento com IA",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Doctor Barber · agendamento por chat\nO cliente conversa no chat, o agente de IA entende o pedido, consulta a agenda e marca o horário no Google Calendar.\n\n**Antes de testar**\n1. Crie a credencial do Gemini e selecione nos dois nós de modelo (*Google Gemini Chat Model* e *Gemini reserva*)\n2. Crie a credencial do Google Calendar e escolha a mesma agenda nos quatro nós de ferramenta\n3. Clique em **Open chat** e mande uma mensagem",
+        "height": 260,
+        "width": 520,
+        "color": 4
+      },
+      "id": "4526c395-d421-48db-a9c6-beccd0e39bdc",
+      "name": "Sobre este workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Ferramentas do agente\nO agente decide sozinho quando usar cada uma. Os campos com **$fromAI()** são preenchidos pelo modelo (datas, título, descrição).",
+        "height": 380,
+        "width": 840,
+        "color": 7
+      },
+      "id": "910c1129-89d3-4379-95a3-853f198d6fd1",
+      "name": "Nota ferramentas",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        500,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseMode": "lastNode"
+        }
+      },
+      "id": "8d329ef4-f948-4181-af4f-b7bbfe597f1a",
+      "name": "Mensagem do cliente",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "451098f2-9d20-4b5e-9213-dcbfc26a932e"
+    },
+    {
+      "parameters": {
+        "promptType": "auto",
+        "needsFallback": true,
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Você é a recepcionista virtual da Doctor Barber. Você atende clientes pelo chat, em português do Brasil, com tom cordial e mensagens curtas (no máximo 3 ou 4 frases). O nome da barbearia é sempre \"Doctor Barber\"; nunca use outro nome.\n\n## Data e hora atuais\nAgora: {{ $now.setZone('America/Sao_Paulo').setLocale('pt-BR').toFormat('cccc, dd/MM/yyyy, HH:mm') }} (fuso America/Sao_Paulo, UTC-03:00).\nPróximos 14 dias: {{ Array(14).fill(0).map((_, i) => $now.setZone('America/Sao_Paulo').plus(i, 'days').setLocale('pt-BR').toFormat('cccc dd/MM/yyyy')).join('; ') }}.\nUse essas datas para entender \"hoje\", \"amanhã\", \"quarta\", \"sábado que vem\" etc. Nunca agende no passado.\n\n## Dados da barbearia\nServiços:\n- Corte: 30 minutos, R$ 40\n- Barba: 30 minutos, R$ 30\n- Corte + barba: 60 minutos, R$ 60\n\nFuncionamento: terça a sábado, das 9h às 19h. Fechado aos domingos e segundas.\nO atendimento precisa terminar até as 19h. Último horário de início: 18h30 para corte ou barba, 18h00 para corte + barba.\nOs horários começam sempre em hora cheia ou meia hora (9h00, 9h30, 10h00...).\n\n## Como atender\n1. Descubra quatro informações: nome do cliente, serviço, dia e horário. Pergunte só o que ainda faltar, uma ou duas coisas por vez. Não peça de novo o que o cliente já disse.\n2. Nome do cliente: o primeiro nome basta. Se a resposta não parecer um nome de pessoa (tiver números, palavrões, ofensas, piadas ou só emojis), não aceite e não repita o que foi escrito: peça com educação um nome válido para o agendamento.\n3. Com serviço, dia e horário em mãos, confira as regras de funcionamento ANTES de consultar a agenda. Se o pedido cair num dia fechado, fora do horário, no passado ou fora da grade de meia em meia hora, explique o motivo em uma frase e sugira o horário válido mais próximo.\n4. Para um horário válido, use a ferramenta \"Verificar disponibilidade\" com o início e o fim do atendimento (fim = início + duração do serviço).\n   - Se estiver ocupado: verifique até 3 horários alternativos próximos no mesmo dia, dentro do funcionamento, e ofereça os que estiverem livres. Se nenhum estiver livre, sugira outro dia.\n   - Se estiver livre e você já tiver as quatro informações: mostre o resumo completo (nome, serviço, dia da semana e data, horário, preço) e pergunte se pode confirmar.\n5. A confirmação só vale se vier DEPOIS do resumo completo, com o nome. Se faltava alguma informação no resumo, ou se algo mudou depois dele, mostre o resumo atualizado e peça confirmação de novo.\n6. Só use a ferramenta \"Criar agendamento\" depois dessa confirmação explícita (\"sim\", \"pode marcar\", \"confirmo\"). Logo antes de criar, verifique a disponibilidade de novo.\n   - Título do evento: \"<Serviço> - <Nome do cliente>\". Exemplo: \"Corte + barba - João Silva\".\n   - Descrição do evento: serviço, duração, preço e a frase \"Agendado pelo chat\".\n7. Depois de criar, confirme ao cliente com o resumo final. Se a ferramenta der erro, diga que não foi possível concluir e peça para tentar de novo em instantes.\n\n## Cancelar, remarcar e conferir\n- Você só cancela ou remarca agendamentos feitos nesta mesma conversa. Para encontrá-los, use \"Buscar agendamentos do cliente\": ela mostra apenas os agendamentos desta conversa. Se não encontrar nada, diga que não achou agendamento feito por este chat e que outros agendamentos são alterados diretamente com a barbearia.\n- Os horários agendados nesta conversa aparecem como ocupados na agenda. Isso é o próprio agendamento do cliente, não conflito com outra pessoa.\n- Cancelar: busque o agendamento, diga qual será cancelado (serviço, dia e horário) e peça confirmação explícita. Depois da confirmação, use \"Cancelar agendamento\" com o ID do evento encontrado na busca e avise o cliente que foi cancelado.\n- Remarcar ou trocar o serviço (por exemplo, transformar corte em corte + barba): busque o agendamento atual e verifique a disponibilidade do novo horário. Se o novo horário coincidir em parte com o agendamento atual do próprio cliente, verifique só a parte que não coincide. Mostre o resumo novo e peça confirmação. Depois da confirmação, primeiro crie o novo agendamento e só então cancele o antigo.\n- Se o cliente quiser incluir outro serviço depois de agendar, ofereça as duas opções: um horário separado logo depois do atual, ou trocar para corte + barba (R$ 60 no total, em vez de R$ 70 separados).\n- Se o cliente pedir para conferir o agendamento, use \"Buscar agendamentos do cliente\" e informe o que está marcado.\n\n## Formato das datas nas ferramentas\nEnvie sempre datas no padrão ISO 8601 com o fuso -03:00. Exemplo: 2026-10-21T14:00:00-03:00.\n\n## Regras\n- Nunca diga que um horário está livre, ou que um agendamento foi feito ou cancelado, sem ter usado a ferramenta correspondente.\n- Nunca agende fora do horário de funcionamento nem em horário ocupado.\n- Não invente serviços, preços, promoções ou nomes.\n- Não mostre detalhes técnicos ao cliente (nomes de ferramentas, formato ISO, JSON). Escreva datas assim: \"quarta-feira, 21/10, às 14h\".\n- Depois de usar qualquer ferramenta, sempre termine com uma mensagem em texto para o cliente. Nunca responda vazio.\n- Nunca mostre ao cliente IDs de eventos ou códigos de conversa.",
+          "maxIterations": 10,
+          "enableStreaming": false
+        }
+      },
+      "id": "9cf8085d-afc5-47d3-8ba5-682ce927d22d",
+      "name": "Recepcionista (AI Agent)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        300,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3-flash-preview",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "8a61fe2e-03b2-4bfd-aaa6-c2371ae55b9a",
+      "name": "Gemini reserva",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -60,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "432a935b-43a9-4a21-a4cb-690cbfa847ac",
+              "name": "output",
+              "value": "={{ ($json.output || '').trim() || 'Desculpe, tive uma instabilidade e não consegui responder agora. Tente de novo em instantes. Se você estava confirmando um horário, mande \"conferir meu agendamento\".' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "972acb7f-451b-4b2b-9902-f358504b1689",
+      "name": "Garantir resposta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "6a326994-0595-40b6-b45f-2f8d35a82910",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        120,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 20
+      },
+      "id": "93ff1d6a-51ee-4f15-860b-5d6e9bd00f5a",
+      "name": "Memória da conversa",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        320,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Verifica se um intervalo de horário está livre na agenda da barbearia. Retorna available=true se estiver livre e available=false se houver algum evento no intervalo. Use antes de oferecer um horário ao cliente e de novo logo antes de criar o agendamento.",
+        "resource": "calendar",
+        "operation": "availability",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "timeMin": "={{ $fromAI('inicio', 'Início do atendimento em ISO 8601 com fuso -03:00. Ex.: 2026-10-21T14:00:00-03:00', 'string') }}",
+        "timeMax": "={{ $fromAI('fim', 'Fim do atendimento (início + duração do serviço) em ISO 8601 com fuso -03:00. Ex.: 2026-10-21T14:30:00-03:00', 'string') }}",
+        "options": {
+          "outputFormat": "availability"
+        }
+      },
+      "id": "79b83a1b-681b-4688-b851-b7a4074f4ac8",
+      "name": "Verificar disponibilidade",
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        560,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cria o agendamento na agenda da barbearia. Use somente depois que o cliente confirmou explicitamente o resumo e a disponibilidade foi verificada.",
+        "resource": "event",
+        "operation": "create",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "start": "={{ $fromAI('inicio', 'Início do atendimento em ISO 8601 com fuso -03:00. Ex.: 2026-10-21T14:00:00-03:00', 'string') }}",
+        "end": "={{ $fromAI('fim', 'Fim do atendimento (início + duração do serviço) em ISO 8601 com fuso -03:00', 'string') }}",
+        "additionalFields": {
+          "summary": "={{ $fromAI('titulo', 'Título no formato: Serviço - Nome do cliente. Ex.: Corte + barba - João Silva', 'string') }}",
+          "description": "={{ $fromAI('descricao', 'Serviço, duração, preço e a frase Agendado pelo chat', 'string') }}\nCódigo da conversa: {{ $('Mensagem do cliente').first().json.sessionId }}"
+        }
+      },
+      "id": "ecd9d5ed-18e5-45ff-9c0d-1e0cafba0e48",
+      "name": "Criar agendamento",
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        760,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Lista os agendamentos futuros feitos nesta conversa (retorna id, título, início e fim de cada evento). Use para cancelar, remarcar ou conferir um agendamento.",
+        "resource": "event",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "returnAll": false,
+        "limit": 10,
+        "timeMin": "={{ $now }}",
+        "timeMax": "={{ $fromAI('ate', 'Fim do período de busca em ISO 8601 com fuso -03:00. Se o cliente não indicar, use 60 dias a partir de hoje.', 'string') }}",
+        "options": {
+          "query": "={{ $('Mensagem do cliente').first().json.sessionId }}",
+          "singleEvents": true,
+          "orderBy": "startTime"
+        }
+      },
+      "id": "78f1f539-a21b-41ef-8b6a-b451d5db0b54",
+      "name": "Buscar agendamentos do cliente",
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        960,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cancela (apaga) um agendamento da agenda. Use somente com o ID de um evento retornado por Buscar agendamentos do cliente e depois que o cliente confirmou explicitamente o cancelamento.",
+        "resource": "event",
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "eventId": "={{ $fromAI('eventId', 'ID do evento, exatamente como retornado por Buscar agendamentos do cliente', 'string') }}",
+        "options": {
+          "sendUpdates": "none"
+        }
+      },
+      "id": "5582dfe8-2359-4787-a688-11c7c1955e87",
+      "name": "Cancelar agendamento",
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        1160,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Mensagem do cliente": {
+      "main": [
+        [
+          {
+            "node": "Recepcionista (AI Agent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recepcionista (AI Agent)": {
+      "main": [
+        [
+          {
+            "node": "Garantir resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini reserva": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Recepcionista (AI Agent)",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Recepcionista (AI Agent)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória da conversa": {
+      "ai_memory": [
+        [
+          {
+            "node": "Recepcionista (AI Agent)",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar disponibilidade": {
+      "ai_tool": [
+        [
+          {
+            "node": "Recepcionista (AI Agent)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar agendamento": {
+      "ai_tool": [
+        [
+          {
+            "node": "Recepcionista (AI Agent)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar agendamentos do cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Recepcionista (AI Agent)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancelar agendamento": {
+      "ai_tool": [
+        [
+          {
+            "node": "Recepcionista (AI Agent)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "tags": []
+}
