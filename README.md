@@ -2,7 +2,7 @@
 
 Agente de IA que atende clientes da **Doctor Barber**, uma barbearia fictícia, pelo chat: entende o pedido em linguagem natural, pergunta o que falta, confere a agenda no Google Calendar e marca o horário depois da confirmação do cliente. Também cancela e remarca agendamentos feitos na mesma conversa.
 
-> 🎥 Vídeo do fluxo funcionando: _[adicione o link aqui]_
+> 🎥 Vídeo do fluxo funcionando: _(https://youtu.be/O7hVk2k1FHQ)_
 
 ## O problema
 
@@ -73,4 +73,4 @@ O JSON não contém credenciais. O passo a passo completo está em [`docs/guia-d
 
 ---
 
-Projeto de portfólio de **Laiss**.
+Projeto de portfólio de **Vicente André**.
